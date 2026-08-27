@@ -454,8 +454,24 @@ function intensity_sat(
                 if(sum_W_i[i]==0.0 || sum_W_i[i-1]==0.0)
                     x = 0.5
                 else
-                    abs_W_ratio = abs.(QL_weights[1,1,k,:,2]./sum_W_i)
+                    # The guard above brackets kmax with a strict `<` search, so it checks the
+                    # pair *ending* at kmax; linear_interpolation searches with `<=`, so it uses
+                    # the pair *starting* there. get_zonal_mixing returns kmax exactly on a grid
+                    # point in four of its branches, and there the two brackets differ by one.
+                    # That extra point is typically a stable ky whose ion QL weight is exactly
+                    # zero, making the whole-array ratio 0/0 = NaN. At a node the interpolation is
+                    # algebraically just y[i] -- the NaN term's coefficient cancels -- but it does
+                    # not cancel in floating point, so x came out NaN. A NaN x then falls through
+                    # both comparisons in mode_transition_function, so Ys/QLA_P/QLA_E are NaN, and
+                    # QLA_P/QLA_E multiply every ky and every species in sum_ky_spectrum: the
+                    # particle and energy fluxes of all species become NaN while the stress
+                    # channels (QLA_O, a constant) survive.
+                    # Build the ratio only where the denominator is non-zero, and keep a
+                    # finiteness backstop onto the same x = 0.5 this guard already falls back to.
+                    abs_W_ratio = [sum_W_i[j]==0.0 ? 0.0 : abs(QL_weights[1,1,k,j,2]/sum_W_i[j])
+                                   for j in eachindex(sum_W_i)]
                     x = linear_interpolation(ky_spect, abs_W_ratio, kmax)
+                    isfinite(x) || (x = 0.5)
                 end
             end
             Y = mode_transition_function(x, Y_ITG, Y_TEM, x_ITG, x_TEM)

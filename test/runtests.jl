@@ -5,6 +5,8 @@ include("runtests_regressions.jl")
 
 include("runtests_sat.jl")
 
+include("runtests_sat3_nan.jl")
+
 include("runtests_core.jl")
 
 include("runtests_EM.jl")
