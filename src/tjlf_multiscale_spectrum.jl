@@ -1,3 +1,10 @@
+# DIAGNOSTIC switch for SAT3's ion-scale zeroing guard (tjlf_multiscale_spectrum.jl,
+# intensity_sat, sat_rule==3). Default false = stock behaviour. Setting it true makes SAT3
+# extrapolate the published eq.(38) shape past kP >= kT instead of returning zero; it exists so a
+# nonlinear-CGYRO study can be given the "guard-free" SAT3 prediction to compare against, and it
+# must never be on in a production run.
+const SAT3_IGNORE_GUARD = Ref(false)
+
 """
     get_rho_ion(inputs::InputTJLF{T}) where T<:Real
 
@@ -730,8 +737,13 @@ function intensity_sat(
                 gammaeff = 0.0
                 if(gamma0 > small) # B: Based on the reduction of the matrices field_spectrum_out and gamma_matrix, I'm going to presume that they are in Fortran's [2, :, :] and [1, :, :] space respectively.
                     if (ky0 <= kT)
-		                if(kP>=kT)
-                           
+		                if(kP>=kT && !SAT3_IGNORE_GUARD[])
+                            # Implementation guard, not published physics: the branch point kP of
+                            # the eq.(38) spectral shape has passed kT = 1/rho_ion, the ky*rho_i = 1
+                            # edge of the CGYRO database SAT3 was fitted to (Dudding 2022 sec.3), so
+                            # rather than extrapolate the fitted shape the whole ion scale is zeroed.
+                            # SAT3_IGNORE_GUARD[] = true (diagnostic only) continues the initial
+                            # quadratic through the ion scale instead.
                             field_spectrum_out[j,i] = 0.0
                         elseif(ky0 <= kP) # initial quadratic
                             sig_ratio = (aoverb * (ky0^2) + ky0 + coverb) / (aoverb * (k0^2) + k0 + coverb)
