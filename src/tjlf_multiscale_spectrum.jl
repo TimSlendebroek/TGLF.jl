@@ -4,6 +4,11 @@
 # nonlinear-CGYRO study can be given the "guard-free" SAT3 prediction to compare against, and it
 # must never be on in a production run.
 const SAT3_IGNORE_GUARD = Ref(false)
+# Second diagnostic variant (2026-09-08): when kP >= kT, fall back to the SAT2 electron-scale
+# expression for ky <= kT instead of zeroing it -- the reading that the zero is a stub and the
+# intended behaviour was "SAT3 has no valid branch point here, so use SAT2" (the source's own
+# comment on kT: "SAT3 used up to ky rho_av = 1.0, then SAT2"). Takes precedence over IGNORE_GUARD.
+const SAT3_GUARD_SAT2_FALLBACK = Ref(false)
 
 """
     get_rho_ion(inputs::InputTJLF{T}) where T<:Real
@@ -736,7 +741,7 @@ function intensity_sat(
                 field_spectrum_out[j,i] = 0.0
                 gammaeff = 0.0
                 if(gamma0 > small) # B: Based on the reduction of the matrices field_spectrum_out and gamma_matrix, I'm going to presume that they are in Fortran's [2, :, :] and [1, :, :] space respectively.
-                    if (ky0 <= kT)
+                    if (ky0 <= kT && !(kP >= kT && SAT3_GUARD_SAT2_FALLBACK[]))
 		                if(kP>=kT && !SAT3_IGNORE_GUARD[])
                             # Implementation guard, not published physics: the branch point kP of
                             # the eq.(38) spectral shape has passed kT = 1/rho_ion, the ky*rho_i = 1
